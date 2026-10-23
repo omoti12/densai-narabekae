@@ -11,7 +11,7 @@
   }
 
   // 支払一覧の1行を読み取る。例：「1345 春日技研電機 末日締 2026/10/31 892,870 でんさい」
-  const ROW = /^\s*(\d{3,8})\s+(.+?)\s+(?:(\S*締)\s+)?(\d{4}\s?\/\s?\d{1,2}\s?\/\s?\d{1,2})\s+(\d{1,3}(?:,\s?\d{3})+|\d+)/;
+  const ROW = /^\s*(\d{3,8})\s+(.+?)\s+(?:(\S*締)\s+)?(\d{4}\s?\/\s?\d{1,2}\s?\/\s?\d{1,2})\s+(\d{1,3}(?:,\s?\d{3})+|\d+)\s*(.*)$/;
   const TOTAL = /^\s*(\d{1,3}(?:,\s?\d{3})+)\s*$/;
 
   function parseLines(lines) {
@@ -24,12 +24,17 @@
       if (strict) {
         const m = line.match(ROW);
         if (m) {
+          // 金額の後ろは「支払区分名」「備考1」「備考2」
+          const rest = m[6].trim() ? m[6].trim().split(/\s{2,}/) : [];
           rows.push({
             payNo: m[1],
             name: m[2].trim(),
             shime: m[3] || '',
             date: m[4].replace(/\s/g, ''),
-            amount: parseInt(m[5].replace(/\D/g, ''), 10)
+            amount: parseInt(m[5].replace(/\D/g, ''), 10),
+            kubun: rest[0] || '',
+            biko1: rest[1] || '',
+            biko2: rest.slice(2).join(' ')
           });
         } else {
           const t = line.match(TOTAL);
@@ -38,7 +43,7 @@
       } else {
         // 会社名だけを1行ずつ貼った場合
         const name = line.split(/\s{2,}/)[0].trim();
-        if (name) rows.push({ payNo: '', name, shime: '', date: '', amount: null });
+        if (name) rows.push({ payNo: '', name, shime: '', date: '', amount: null, kubun: '', biko1: '', biko2: '' });
       }
     }
     return { rows, total };

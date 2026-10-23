@@ -210,7 +210,8 @@ select {
       <p class="empty">支払一覧表を読み込むと、ここにでんさいの順番で表示されます。</p>
     </div>
     <div class="row noprint" id="actions" hidden>
-      <button type="button" class="primary" id="copyBtn">Excel用にコピー</button>
+      <button type="button" class="primary" id="pdfBtn">PDFで出力</button>
+      <button type="button" id="copyBtn">Excel用にコピー</button>
       <button type="button" id="printBtn">印刷</button>
       <button type="button" id="clearBtn">クリア</button>
       <span class="toast" id="toast" role="status"></span>
@@ -225,8 +226,10 @@ select {
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="torihikisaki.js"></script>
 <script src="matcher.js"></script>
+<script src="pdfout.js"></script>
 <script>
 (() => {
   const MASTER = window.TORIHIKISAKI;
@@ -448,6 +451,19 @@ select {
     const text = [head, ...body].map((c) => c.join('\t')).join('\n');
     try { await navigator.clipboard.writeText(text); toast('コピーしました。Excelに貼り付けできます。'); }
     catch (e) { toast('コピーできませんでした。'); }
+  });
+  $('pdfBtn').addEventListener('click', async () => {
+    if (!current || !current.sorted) return;
+    if (!window.jspdf) { toast('PDFを作る部品を読み込めませんでした。インターネット接続を確認してください。'); return; }
+    try {
+      await document.fonts.ready;
+      const doc = DensaiPdf.buildPdf(current.sorted);
+      doc.save(DensaiPdf.fileName());
+      toast('PDFを出力しました。');
+    } catch (e) {
+      console.error(e);
+      toast('PDFを作れませんでした。');
+    }
   });
   $('printBtn').addEventListener('click', () => window.print());
   $('clearBtn').addEventListener('click', () => { current = null; $('pasteInput').value = ''; render(); });

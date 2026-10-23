@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>でんさい支払並べ替え</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDGothic:wght@400;700&display=swap">
+<style>
+/* Layout: 上に読み込み欄、下に「でんさい順」の結果表。印刷時は表だけ */
+:root {
+  --bg: #f4f5f2;
+  --surface: #ffffff;
+  --fg: #1e2420;
+  --muted: #646d66;
+  --line: #d8ddd6;
+  --accent: #1f6b4f;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2efe8;
+  --warn: #9a5b00;
+  --warn-soft: #fff1d6;
+  --bad: #b3261e;
+  --bad-soft: #fde4e1;
+  --font: "BIZ UDPGothic", "Yu Gothic UI", "Meiryo", sans-serif;
+  --font-num: "BIZ UDGothic", "Consolas", "MS Gothic", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141816; --surface: #1c211e; --fg: #e6ebe7; --muted: #9aa59d; --line: #313934;
+    --accent: #6fcf9f; --accent-ink: #0d1f16; --accent-soft: #1f3329;
+    --warn: #f0b85a; --warn-soft: #3a2c12; --bad: #ff8a80; --bad-soft: #3d1c1a;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 20px;
+}
+h1 { margin: 0; font-size: 1.6rem; letter-spacing: .03em; }
+.lead { margin: 4px 0 0; color: var(--muted); }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.panel h2 { margin: 0; font-size: 1rem; }
+
+.drop {
+  border: 2px dashed var(--line);
+  border-radius: 8px;
+  padding: 28px 16px;
+  text-align: center;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  transition: border-color .15s, background .15s;
+}
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop strong { font-size: 1.05rem; }
+.drop p { margin: 0; color: var(--muted); font-size: .88rem; }
+
+details summary { cursor: pointer; color: var(--accent); font-weight: 700; }
+details[open] summary { margin-bottom: 10px; }
+textarea {
+  width: 100%;
+  min-height: 140px;
+  font: inherit;
+  font-family: var(--font-num);
+  font-size: .9rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button, .btn {
+  font: inherit;
+  font-weight: 700;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+button:hover, .btn:hover { border-color: var(--accent); }
+button.primary, .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, .btn:focus-within, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.btn input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+.note { margin: 0; font-size: .85rem; color: var(--muted); }
+.error { margin: 0; color: var(--bad); font-weight: 700; }
+
+/* 結果 */
+.summary { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
+.summary .big { font-family: var(--font-num); font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.chip {
+  display: inline-block;
+  font-size: .8rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  white-space: nowrap;
+}
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.bad { background: var(--bad-soft); color: var(--bad); }
+
+.tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; }
+th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+th { font-size: .8rem; color: var(--muted); background: var(--bg); font-weight: 700; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.seq { font-family: var(--font-num); font-weight: 700; color: var(--accent); white-space: nowrap; }
+td.abbr { color: var(--muted); }
+tr.warn td { background: var(--warn-soft); }
+tr.bad td { background: var(--bad-soft); }
+tfoot td { font-weight: 700; border-top: 2px solid var(--line); border-bottom: none; }
+select {
+  font: inherit;
+  font-size: .85rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 3px 4px;
+  max-width: 100%;
+}
+.status { display: grid; gap: 4px; }
+
+.empty { text-align: center; color: var(--muted); padding: 28px 12px; }
+
+.master ol { margin: 0; padding-left: 2.6em; columns: 2 260px; column-gap: 24px; font-size: .88rem; }
+.master li { break-inside: avoid; }
+.master li.hit { color: var(--accent); font-weight: 700; }
+
+.toast { color: var(--accent); font-size: .88rem; min-height: 1.4em; }
+
+@media print {
+  body { background: #fff; color: #000; font-size: 11pt; }
+  .noprint, .inputs, .master, details { display: none !important; }
+  .panel { border: none; padding: 0; }
+  .tablebox { border: none; overflow: visible; }
+  table { min-width: 0; }
+  th { background: #eee; color: #000; }
+  tr.warn td, tr.bad td { background: none; }
+  select { border: none; appearance: none; padding: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>でんさい支払並べ替え</h1>
+    <p class="lead">支払一覧表を、でんさいの取引先一覧（利用者番号順）と同じ順番に並べ替えます。</p>
+  </header>
+
+  <section class="panel inputs" aria-labelledby="in-h">
+    <h2 id="in-h">1. 支払一覧表を読み込む</h2>
+    <div class="drop" id="drop">
+      <strong>支払一覧表のPDFをここにドラッグ</strong>
+      <p>または</p>
+      <label class="btn primary">PDFを選ぶ<input type="file" id="fileInput" accept="application/pdf,.pdf"></label>
+    </div>
+    <details>
+      <summary>PDFではなく文字を貼り付ける（Excelからのコピーなど）</summary>
+      <div style="display:grid;gap:8px">
+        <textarea id="pasteInput" placeholder="1345	春日技研電機	末日締	2026/10/31	892,870	でんさい&#10;1349	共栄冷機	末日締	2026/10/31	440,000	でんさい&#10;（会社名だけを1行ずつ貼ってもOK）"></textarea>
+        <div class="row"><button type="button" class="primary" id="pasteBtn">貼り付けた内容で並べ替え</button></div>
+      </div>
+    </details>
+    <p class="error" id="error" role="alert" hidden></p>
+    <p class="note">読み込んだ内容はこのパソコンのブラウザの中だけで処理されます。どこにも送信・保存されません。</p>
+  </section>
+
+  <section class="panel" aria-labelledby="out-h">
+    <h2 id="out-h">2. でんさい順の結果</h2>
+    <div id="result">
+      <p class="empty">支払一覧表を読み込むと、ここにでんさいの順番で表示されます。</p>
+    </div>
+    <div class="row noprint" id="actions" hidden>
+      <button type="button" class="primary" id="copyBtn">Excel用にコピー</button>
+      <button type="button" id="printBtn">印刷</button>
+      <button type="button" id="clearBtn">クリア</button>
+      <span class="toast" id="toast" role="status"></span>
+    </div>
+  </section>
+
+  <details class="panel master">
+    <summary>基準にしているでんさいの取引先一覧（<span id="masterCount"></span>社）</summary>
+    <ol id="masterList"></ol>
+    <p class="note">取引先が変わったときは torihikisaki.js を書き換えてください。</p>
+  </details>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="torihikisaki.js"></script>
+<script src="matcher.js"></script>
+<script>
+(() => {
+  const MASTER = window.TORIHIKISAKI;
+  const matcher = DensaiMatcher.createMatcher(MASTER);
+  const ALIAS_KEY = 'densai-narabekae.aliases.v1';
+  const $ = (id) => document.getElementById(id);
+  const yen = (n) => (n == null ? '' : n.toLocaleString('ja-JP'));
+
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  // 手動で選んだ「略称→登録名」の対応だけをこのブラウザに覚えておく（金額などは保存しない）
+  function loadAliases() {
+    try { return JSON.parse(localStorage.getItem(ALIAS_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function saveAliases(a) {
+    try { localStorage.setItem(ALIAS_KEY, JSON.stringify(a)); } catch (e) {}
+  }
+  let aliases = loadAliases();
+  let current = null; // { rows, total }
+
+  // ---- PDF の読み取り ----
+  async function pdfToLines(file) {
+    if (!window.pdfjsLib) throw new Error('PDFを読むための部品を読み込めませんでした。インターネット接続を確認してください。');
+    const data = new Uint8Array(await file.arrayBuffer());
+    const pdf = await pdfjsLib.getDocument({
+      data,
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+      cMapPacked: true
+    }).promise;
+    const lines = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      const items = tc.items
+        .filter((it) => it.str && it.str.trim() !== '')
+        .map((it) => ({ s: it.str, x: it.transform[4], y: it.transform[5], w: it.width, h: Math.abs(it.transform[3]) || it.height || 10 }));
+      // 同じ高さにある文字を1行にまとめる
+      items.sort((a, b) => b.y - a.y || a.x - b.x);
+      const groups = [];
+      for (const it of items) {
+        const g = groups.find((g) => Math.abs(g.y - it.y) < it.h * 0.5);
+        if (g) g.items.push(it); else groups.push({ y: it.y, items: [it] });
+      }
+      groups.sort((a, b) => b.y - a.y);
+      for (const g of groups) {
+        g.items.sort((a, b) => a.x - b.x);
+        let line = '';
+        let end = null;
+        for (const it of g.items) {
+          if (end !== null && it.x - end > it.h * 0.6) line += '  ';
+          else if (end !== null && it.x - end > it.h * 0.2) line += ' ';
+          line += it.s;
+          end = it.x + it.w;
+        }
+        lines.push(line);
+      }
+    }
+    return lines;
+  }
+
+  async function handleFile(file) {
+    showError('');
+    if (!file) return;
+    if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) {
+      showError('PDFファイルを選んでください。Excelの場合は「文字を貼り付ける」を使ってください。');
+      return;
+    }
+    try {
+      const lines = await pdfToLines(file);
+      const parsed = DensaiMatcher.parseLines(lines);
+      if (!parsed.rows.length) {
+        showError('このPDFから支払の行を見つけられませんでした。支払一覧表のPDFか確認してください。');
+        return;
+      }
+      current = parsed;
+      render();
+    } catch (e) {
+      console.error(e);
+      showError(e.message || 'PDFを読み込めませんでした。');
+    }
+  }
+
+  function showError(msg) {
+    $('error').textContent = msg;
+    $('error').hidden = !msg;
+  }
+
+  // ---- 表示 ----
+  function render() {
+    const box = $('result');
+    if (!current) {
+      box.innerHTML = '<p class="empty">支払一覧表を読み込むと、ここにでんさいの順番で表示されます。</p>';
+      $('actions').hidden = true;
+      highlightMaster(new Set());
+      return;
+    }
+    const sorted = matcher.sort(current.rows, aliases);
+    const sum = sorted.reduce((a, r) => a + (r.amount || 0), 0);
+    const hasAmount = sorted.some((r) => r.amount != null);
+    const nOk = sorted.filter((r) => r.match.status === 'ok' || r.match.status === 'manual').length;
+    const nAmb = sorted.filter((r) => r.match.status === 'ambiguous').length;
+    const nNone = sorted.filter((r) => r.match.status === 'none').length;
+
+    let totalChip = '';
+    if (current.total != null && hasAmount) {
+      totalChip = current.total === sum
+        ? '<span class="chip">支払一覧表の合計と一致</span>'
+        : `<span class="chip bad">支払一覧表の合計 ${yen(current.total)} と一致しません</span>`;
+    }
+
+    const options = (sel) => '<option value="">― 選んでください ―</option>' +
+      MASTER.map((m, i) => `<option value="${i}"${i === sel ? ' selected' : ''}>${i + 1}. ${esc(m)}</option>`).join('');
+
+    let html = `<div class="summary">
+      <span class="big">${sorted.length} 件</span>
+      ${hasAmount ? `<span class="big">${yen(sum)} 円</span>` : ''}
+      <span class="chip">照合OK ${nOk}</span>
+      ${nAmb ? `<span class="chip warn">要確認 ${nAmb}</span>` : ''}
+      ${nNone ? `<span class="chip bad">見つからない ${nNone}</span>` : ''}
+      ${totalChip}
+    </div>`;
+    if (nAmb || nNone) {
+      html += '<p class="note noprint">黄色・赤の行は右の欄で正しい取引先を選んでください。選んだ対応は次回から自動で使われます。</p>';
+    }
+    html += `<div class="tablebox"><table>
+      <thead><tr>
+        <th>でんさい順</th><th>でんさい登録名</th><th>支払番号</th><th>支払先 略称</th><th>支払日</th><th class="num">金額</th><th class="noprint">照合</th>
+      </tr></thead><tbody>`;
+    sorted.forEach((r) => {
+      const st = r.match.status;
+      const cls = st === 'ambiguous' ? 'warn' : st === 'none' ? 'bad' : '';
+      const idx = r.match.index;
+      let statusCell;
+      if (st === 'ok') statusCell = '<span class="chip">OK</span>';
+      else if (st === 'manual') statusCell = `<div class="status"><span class="chip">手動で指定</span><button type="button" class="reset" data-name="${esc(r.name)}" style="padding:2px 8px;font-size:.8rem">解除</button></div>`;
+      else statusCell = `<div class="status"><span class="chip ${st === 'none' ? 'bad' : 'warn'}">${st === 'none' ? '見つからない' : '候補が複数'}</span>
+        <select data-name="${esc(r.name)}" aria-label="${esc(r.name)} の取引先">${options(-1)}</select></div>`;
+      html += `<tr class="${cls}">
+        <td class="seq">${idx >= 0 ? idx + 1 : '―'}</td>
+        <td>${idx >= 0 ? esc(MASTER[idx]) : '<span style="color:var(--bad)">一覧にない取引先</span>'}${st === 'ambiguous' ? `<div class="note">候補：${r.match.candidates.map((c) => esc(MASTER[c])).join(' / ')}</div>` : ''}</td>
+        <td class="num">${esc(r.payNo)}</td>
+        <td class="abbr">${esc(r.name)}</td>
+        <td class="num">${esc(r.date)}</td>
+        <td class="num">${yen(r.amount)}</td>
+        <td class="noprint">${statusCell}</td>
+      </tr>`;
+    });
+    html += '</tbody>';
+    if (hasAmount) html += `<tfoot><tr><td colspan="5">合計</td><td class="num">${yen(sum)}</td><td class="noprint"></td></tr></tfoot>`;
+    html += '</table></div>';
+    box.innerHTML = html;
+    $('actions').hidden = false;
+    current.sorted = sorted;
+    highlightMaster(new Set(sorted.map((r) => r.match.index)));
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // 手動で取引先を選んだとき
+  $('result').addEventListener('change', (e) => {
+    const sel = e.target.closest('select[data-name]');
+    if (!sel || sel.value === '') return;
+    aliases[matcher.normalize(sel.dataset.name)] = MASTER[+sel.value];
+    saveAliases(aliases);
+    render();
+  });
+  $('result').addEventListener('click', (e) => {
+    const btn = e.target.closest('button.reset');
+    if (!btn) return;
+    delete aliases[matcher.normalize(btn.dataset.name)];
+    saveAliases(aliases);
+    render();
+  });
+
+  // ---- 取引先一覧 ----
+  $('masterCount').textContent = MASTER.length;
+  $('masterList').innerHTML = MASTER.map((m) => `<li>${esc(m)}</li>`).join('');
+  function highlightMaster(set) {
+    [...$('masterList').children].forEach((li, i) => li.classList.toggle('hit', set.has(i)));
+  }
+
+  // ---- 入力 ----
+  $('fileInput').addEventListener('change', (e) => { handleFile(e.target.files[0]); e.target.value = ''; });
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => handleFile(e.dataTransfer.files[0]));
+  // 枠の外に落としてもブラウザがPDFを開いてしまわないように
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => { e.preventDefault(); if (!drop.contains(e.target)) handleFile(e.dataTransfer.files[0]); });
+
+  $('pasteBtn').addEventListener('click', () => {
+    showError('');
+    const parsed = DensaiMatcher.parseLines($('pasteInput').value.split(/\r?\n/));
+    if (!parsed.rows.length) { showError('貼り付け欄が空です。'); return; }
+    current = parsed;
+    render();
+  });
+
+  // ---- 出力 ----
+  let toastTimer;
+  function toast(msg) {
+    $('toast').textContent = msg;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { $('toast').textContent = ''; }, 2500);
+  }
+  $('copyBtn').addEventListener('click', async () => {
+    if (!current || !current.sorted) return;
+    const head = ['でんさい順', 'でんさい登録名', '支払番号', '支払先略称', '支払日', '金額'];
+    const body = current.sorted.map((r) => [
+      r.match.index >= 0 ? r.match.index + 1 : '',
+      r.match.index >= 0 ? MASTER[r.match.index] : '一覧にない取引先',
+      r.payNo, r.name, r.date, r.amount == null ? '' : r.amount
+    ]);
+    const text = [head, ...body].map((c) => c.join('\t')).join('\n');
+    try { await navigator.clipboard.writeText(text); toast('コピーしました。Excelに貼り付けできます。'); }
+    catch (e) { toast('コピーできませんでした。'); }
+  });
+  $('printBtn').addEventListener('click', () => window.print());
+  $('clearBtn').addEventListener('click', () => { current = null; $('pasteInput').value = ''; render(); });
+})();
+</script>
+</body>
+</html>
